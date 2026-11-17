@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>矿物分类识别系统</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%E2%97%86%3C/text%3E%3C/svg%3E">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f6f3ee;
+    --surface: #ffffff;
+    --text: #1e293b;
+    --text-muted: #78716c;
+    --border: #e7e5e4;
+    --accent: #d97706;
+    --accent-light: #fde68a;
+    --accent-bg: #fffbeb;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --green: #059669;
+    --green-bg: #ecfdf5;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.6;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    text-align: center;
+  }
+  header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    flex: 1;
+    width: 100%;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* Tab content */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ===== Tab 1: Image classf ===== */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 60px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: var(--surface);
+    position: relative;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: var(--accent-bg); }
+  .upload-zone.dragover { border-color: var(--accent); background: var(--accent-bg); transform: scale(1.01); }
+  .upload-zone.has-image { padding: 0; border-style: solid; cursor: default; }
+
+  .upload-zone .icon {
+    width: 56px; height: 56px; margin: 0 auto 16px;
+    background: var(--accent-bg); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .upload-zone .icon svg { width: 28px; height: 28px; stroke: var(--accent); fill: none; stroke-width: 1.8; }
+  .upload-zone h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .upload-zone p { font-size: 14px; color: var(--text-muted); }
+  .upload-zone input[type="file"] { display: none; }
+
+  .result-area { display: none; margin-top: 28px; gap: 28px; }
+  .result-area.visible { display: grid; grid-template-columns: 1fr 1fr; }
+
+  .preview-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .preview-card .img-wrap {
+    width: 100%; aspect-ratio: 4/3; overflow: hidden;
+    background: #f1f0ed;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .preview-card .img-wrap img { width: 100%; height: 100%; object-fit: contain; }
+  .preview-card .file-info {
+    padding: 12px 16px; font-size: 13px; color: var(--text-muted);
+    border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;
+  }
+  .preview-card .file-info .reload-btn {
+    background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 6px 14px; font-size: 13px; color: var(--text-muted); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .preview-card .file-info .reload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .results-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .results-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .result-item {
+    margin-bottom: 14px;
+    opacity: 0; transform: translateY(8px);
+    animation: fadeUp 0.35s ease forwards;
+  }
+  .result-item:last-child { margin-bottom: 0; }
+  @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+  .result-item .header {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;
+  }
+  .result-item .name-cn { font-size: 16px; font-weight: 600; }
+  .result-item .name-en {
+    font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: 6px;
+  }
+  .result-item .confidence-label { font-size: 13px; font-weight: 600; color: var(--accent); }
+
+  .result-item .bar-track {
+    height: 8px; background: #f1f0ed; border-radius: 4px; overflow: hidden;
+  }
+  .result-item .bar-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), #ea580c);
+    width: 0%; transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .result-item .bar-fill.animate { width: var(--pct); }
+
+  .result-item.top-1 .name-cn { font-size: 18px; }
+  .result-item.top-1 .bar-track { height: 10px; }
+
+  .loading {
+    display: none; text-align: center; padding: 40px;
+  }
+  .loading.visible { display: block; }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { font-size: 14px; color: var(--text-muted); }
+
+  .error-msg {
+    display: none; background: var(--red-bg); border: 1px solid #fecaca; border-radius: var(--radius-sm);
+    padding: 12px 16px; color: var(--red); font-size: 14px; margin-top: 16px;
+  }
+
+  /* ===== Tab 2: Property identification ===== */
+  .ident-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 28px;
+    box-shadow: var(--shadow);
+  }
+
+  .ident-progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 24px;
+  }
+  .ident-progress .dot {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .ident-progress .dot.done { background: var(--accent); }
+  .ident-progress .dot.current { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+  .ident-progress .dot.skipped { background: #a8a29e; opacity: 0.55; }
+
+  .ident-question-area {
+    min-height: 240px;
+  }
+
+  .ident-question-number {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .ident-question-text {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .ident-hint {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: var(--accent-bg);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent);
+  }
+
+  .ident-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ident-opt-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 14px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  .ident-opt-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .ident-opt-btn:active {
+    background: var(--accent-light);
+  }
+
+  .ident-skip-btn {
+    margin-top: 10px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ident-skip-btn:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+    background: #f5f5f4;
+  }
+
+  .ident-candidates-bar {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-light);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .ident-candidates-bar strong { color: var(--accent); font-size: 15px; }
+
+  /* Answer history */
+  .ident-history {
+    margin-top: 20px;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--border);
+  }
+  .ident-history-title {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .ident-history-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ident-history-tag {
+    padding: 4px 10px;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-light);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ident-history-tag:hover {
+    background: #fff;
+    border-color: var(--accent);
+  }
+  .ident-history-tag .q-label { font-weight: 500; }
+  .ident-history-tag .a-label { color: var(--text-muted); }
+  .ident-history-tag.skipped {
+    background: #fafaf9;
+    border-color: var(--border);
+    color: var(--text-muted);
+  }
+  .ident-history-tag.skipped .a-label { color: #a8a29e; }
+
+  /* Reset button */
+  .ident-reset-btn {
+    margin-top: 12px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ident-reset-btn:hover {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  /* Ident results */
+  .ident-results {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .ident-results-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+
+  /* Footer */
+  footer {
+    text-align: center; padding: 20px; font-size: 13px; color: var(--text-muted);
+    border-top: 1px solid var(--border); background: var(--surface);
+  }
+
+  /* Responsive */
+  /* Refine section */
+  .refine-section {
+    margin-top: 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .refine-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent-bg);
+    border: 1.5px dashed var(--accent);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .refine-btn:hover {
+    background: var(--accent-light);
+    border-style: solid;
+  }
+  .refine-qa {
+    margin-top: 16px;
+  }
+  .refine-qa .ident-question-text { font-size: 16px; }
+  .refine-qa .ident-hint { font-size: 13px; padding: 8px 12px; }
+  .refine-qa .ident-opt-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-width: 1px;
+  }
+  .refine-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  .refine-result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+  }
+  .refine-result-item .rr-name { font-weight: 600; }
+  .refine-result-item .rr-scores { font-size: 12px; color: var(--text-muted); }
+  .refine-result-item .rr-scores .score-high { color: var(--accent); font-weight: 600; }
+  @media (max-width: 680px) {
+    .result-area.visible { grid-template-columns: 1fr; }
+    .container { padding: 16px; }
+    .upload-zone { padding: 40px 16px; }
+    .ident-card { padding: 20px; }
+    .ident-question-text { font-size: 17px; }
+    .ident-opt-btn { padding: 12px 14px; font-size: 13px; }
+  }
+  @media (max-width: 380px) {
+    .tab-bar { gap: 2px; }
+    .tab-btn {
+      padding: 9px 6px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/ort.min.js"></script>
+<script>
+  window.MINERAL_MODEL_URL =
+    "https://huggingface.co/baizizhidao11/mineral-classifier-onnx/resolve/main/model-int8.onnx";
+</script>
+</head>
+<body>
+
+<header>
+  <h1><span>◆</span> 矿物分类识别系统</h1>
+  <p>支持图像识别 + 物理性质交互鉴定</p>
+</header>
+
+<div class="container">
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="image">📷 图像识别</button>
+    <button class="tab-btn" data-tab="properties">🔬 物理性质鉴定</button>
+  </div>
+
+  <!-- ============ TAB 1: Image classification ============ -->
+  <div class="tab-content active" id="tab-image">
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div class="icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <h2>点击或拖拽上传矿物图片</h2>
+      <p>支持 JPG / PNG / WebP / BMP，最大 10MB</p>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>正在分析矿物特征…</p>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="result-area" id="resultArea">
+      <div class="preview-card">
+        <div class="img-wrap"><img id="previewImg" alt="矿物预览"></div>
+        <div class="file-info">
+          <span id="fileName">—</span>
+          <button class="reload-btn" id="reloadBtn">重新选择</button>
+        </div>
+      </div>
+      <div class="results-card">
+        <h3>识别结果</h3>
+        <div id="resultsList"></div>
+        <div class="refine-section" id="refineSection" style="display:none;">
+            <button class="refine-btn" id="refineBtn">🔍 追问物理性质 → 进一步确认</button>
+            <div class="refine-qa" id="refineQA" style="display:none;">
+                <span class="refine-badge">基于性质追问（不限图像结果）</span>
+                <div class="ident-progress" id="refineProgress"></div>
+                <div class="ident-question-area" id="refineQuestionArea"></div>
+                <div class="ident-candidates-bar" id="refineCandidatesBar" style="display:none;">
+                    <span>图像结果中匹配：<strong id="refineCandidateCount">0</strong> 种</span>
+                </div>
+                <div class="ident-history" id="refineHistory" style="display:none;">
+                <div class="ident-history-title">已回答 / 已跳过（点击可回退）</div>
+                    <div class="ident-history-tags" id="refineHistoryTags"></div>
+                    <button class="ident-reset-btn" id="refineResetBtn">↻ 重新追问</button>
+                </div>
+                <div class="refine-results" id="refineResults" style="display:none;"></div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ TAB 2: Property identification ============ -->
+  <div class="tab-content" id="tab-properties">
+
+    <div class="ident-card">
+      <div class="ident-progress" id="identProgress"></div>
+
+      <div class="ident-question-area" id="identQuestionArea">
+        <!-- Question + options rendered by JS -->
+      </div>
+
+      <div class="ident-candidates-bar" id="identCandidatesBar" style="display:none;">
+        <span>当前匹配矿物：<strong id="identCandidateCount">0</strong> 种</span>
+        <span style="font-size:12px;">继续回答以缩小范围</span>
+      </div>
+
+      <div class="ident-history" id="identHistory" style="display:none;">
+        <div class="ident-history-title">已回答的问题（点击可回退）</div>
+        <div class="ident-history-tags" id="identHistoryTags"></div>
+        <button class="ident-reset-btn" id="identResetBtn">↻ 重新开始</button>
+      </div>
+
+      <div class="ident-results" id="identResults" style="display:none;"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer>
+  <span id="footerInfo">矿物分类识别系统 v2.0</span>
+</footer>
+
+<script src="local-engine.js"></script>
+<script>
+// ===== Tab switching =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== Image classification =====
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const previewImg = document.getElementById('previewImg');
+const fileName = document.getElementById('fileName');
+const resultArea = document.getElementById('resultArea');
+const resultsList = document.getElementById('resultsList');
+const loading = document.getElementById('loading');
+const errorMsg = document.getElementById('errorMsg');
+const reloadBtn = document.getElementById('reloadBtn');
+const footerInfo = document.getElementById('footerInfo');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files.length > 0) handleFiles(e.target.files); });
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+});
+reloadBtn.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+
+async function handleFiles(files) {
+  // Validate all files
+  for (let f of files) {
+    if (!f.type.startsWith('image/')) { showError('文件“' + f.name + '”不是图片'); return; }
+    if (f.size > 10 * 1024 * 1024) { showError('图片“' + f.name + '”超过 10MB'); return; }
+  }
+  errorMsg.style.display = 'none';
+  resultArea.classList.remove('visible');
+  resultsList.innerHTML = '';
+  loading.classList.add('visible');
+
+  if (files.length === 1) {
+    // Single photo: existing behavior
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = e => { previewImg.src = e.target.result; fileName.textContent = file.name; };
+    reader.readAsDataURL(file);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/classify', { method: 'POST', body: formData });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '请求失败'); }
+      const data = await res.json();
+      loading.classList.remove('visible');
+      renderResults(data.results, 1);
+      resultArea.classList.add('visible');
+    } catch (err) {
+      loading.classList.remove('visible');
+      showError(err.message);
+    }
+  } else {
+    // Multiple photos: classify each, average results
+    fileName.textContent = files.length + ' 张照片';
+    // Show first photo as preview
+    const reader = new FileReader();
+    reader.onload = e => { previewImg.src = e.target.result; };
+    reader.readAsDataURL(files[0]);
+    
+    const formData = new FormData();
+    for (let f of files) { formData.append('files', f); }
+    try {
+      const res = await fetch('/api/classify-multi', { method: 'POST', body: formData });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '请求失败'); }
+      const data = await res.json();
+      loading.classList.remove('visible');
+      renderResults(data.results, files.length);
+      resultArea.classList.add('visible');
+    } catch (err) {
+      loading.classList.remove('visible');
+      showError(err.message);
+    }
+  }
+}
+
+function renderResults(results, photoCount) {
+  resultsList.innerHTML = '';
+  results.forEach((r, i) => {
+    const item = document.createElement('div');
+    item.className = 'result-item ' + (i === 0 ? 'top-1' : '');
+    item.style.animationDelay = (i * 0.08) + 's';
+    let photoBadge = '';
+    if (photoCount && photoCount > 1 && r.photos) {
+      photoBadge = '<span style="font-size:11px;color:var(--text-muted);background:var(--accent-bg);padding:1px 6px;border-radius:3px;margin-left:6px;">' + r.photos + '/' + photoCount + '张</span>';
+    }
+    item.innerHTML = '<div class="header"><div><span class="name-cn">' + r.name_cn + '</span><span class="name-en">' + r.name_en + photoBadge + '</span></div><span class="confidence-label">' + (r.confidence !== undefined ? r.confidence.toFixed(1) : '0.0') + '%</span></div><div class="bar-track"><div class="bar-fill" style="--pct:' + (r.confidence || 0) + '%"></div></div>';
+    resultsList.appendChild(item);
+    requestAnimationFrame(() => { requestAnimationFrame(() => { item.querySelector('.bar-fill').classList.add('animate'); }); });
+  });
+  // Show refine button + store for combined scoring
+  window._lastImageResults = results;
+  window._lastImageScores = {};
+  results.forEach(r => { window._lastImageScores[r.name_en.toLowerCase()] = (r.confidence || 0); });
+  document.getElementById('refineSection').style.display = 'block';
+  document.getElementById('refineQA').style.display = 'none';
+  document.getElementById('refineBtn').style.display = 'block';
+  // Reset refine state
+  window._refineAnswers = {};
+  window._refineAnswerLabels = {};
+  window._refineSkipped = {};
+  window._refineStep = 0;
+  // Show multi-photo info
+  let info = document.getElementById('multiPhotoInfo');
+  if (photoCount && photoCount > 1) {
+    if (!info) {
+      info = document.createElement('div');
+      info.id = 'multiPhotoInfo';
+      info.style.cssText = 'margin-top:12px;padding:8px 12px;background:var(--accent-bg);border:1px solid var(--accent-light);border-radius:var(--radius-sm);font-size:13px;color:var(--text-muted);text-align:center;';
+      document.getElementById('refineSection').parentNode.insertBefore(info, document.getElementById('refineSection'));
+    }
+    info.textContent = '▁ ' + photoCount + '张照片平均结果 ▁';
+    info.style.display = 'block';
+  } else if (info) {
+    info.style.display = 'none';
+  }
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+}
+
+// ===== Inline refine Q&A (after image classification) =====
+let _refineQuestions = [];
+
+function refineHandledCount() {
+  return Object.keys(window._refineAnswers).length + Object.keys(window._refineSkipped || {}).length;
+}
+
+document.getElementById('refineBtn').addEventListener('click', () => {
+  const results = window._lastImageResults || [];
+  if (results.length === 0) return;
+  document.getElementById('refineBtn').style.display = 'none';
+  document.getElementById('refineQA').style.display = 'block';
+  window._refineAnswers = {};
+  window._refineAnswerLabels = {};
+  window._refineSkipped = {};
+  window._refineStep = 0;
+  window._refineFilter = null; // Search all minerals via property Q&A
+  window._refineImageScores = window._lastImageScores || {};
+  loadRefineQuestions();
+});
+
+document.getElementById('refineResetBtn').addEventListener('click', () => {
+  window._refineAnswers = {};
+  window._refineAnswerLabels = {};
+  window._refineSkipped = {};
+  window._refineStep = 0;
+  document.getElementById('refineResults').style.display = 'none';
+  document.getElementById('refineCandidatesBar').style.display = 'none';
+  document.getElementById('refineHistory').style.display = 'none';
+  renderRefineProgress();
+  renderRefineQuestion();
+  updateRefineHistory();
+});
+
+async function loadRefineQuestions() {
+  try {
+    const res = await fetch('/api/identification/questions');
+    const data = await res.json();
+    _refineQuestions = data.questions;
+    renderRefineProgress();
+    renderRefineQuestion();
+  } catch (err) {
+    document.getElementById('refineQuestionArea').innerHTML = '<div class="error-msg" style="display:block;">加载失败</div>';
+  }
+}
+
+function renderRefineProgress() {
+  const p = document.getElementById('refineProgress');
+  p.innerHTML = '';
+  _refineQuestions.forEach((q, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    if (window._refineAnswers[q.id]) dot.classList.add('done');
+    else if (window._refineSkipped[q.id]) dot.classList.add('skipped');
+    if (i === window._refineStep && !window._refineAnswers[q.id] && !window._refineSkipped[q.id]) dot.classList.add('current');
+    p.appendChild(dot);
+  });
+}
+
+function renderRefineQuestion() {
+  const step = window._refineStep;
+  if (step >= _refineQuestions.length || refineHandledCount() >= _refineQuestions.length) {
+    return;
+  }
+  const q = _refineQuestions[step];
+  if (!q) return;
+  if (window._refineAnswers[q.id] || window._refineSkipped[q.id]) {
+    window._refineStep++;
+    renderRefineQuestion();
+    return;
+  }
+
+  const area = document.getElementById('refineQuestionArea');
+  area.innerHTML = '';
+  const num = document.createElement('div');
+  num.className = 'ident-question-number';
+  num.textContent = '追问 ' + (step + 1) + ' / ' + _refineQuestions.length;
+  area.appendChild(num);
+
+  const text = document.createElement('div');
+  text.className = 'ident-question-text';
+  text.textContent = q.question_cn;
+  area.appendChild(text);
+
+  const hint = document.createElement('div');
+  hint.className = 'ident-hint';
+  hint.textContent = '💡 ' + q.hint_cn;
+  area.appendChild(hint);
+
+  const opts = document.createElement('div');
+  opts.className = 'ident-options';
+  q.options.forEach((opt, oi) => {
+    const btn = document.createElement('button');
+    btn.className = 'ident-opt-btn';
+    btn.style.animationDelay = (oi * 0.04) + 's';
+    btn.innerHTML = '<strong>' + opt.value + '</strong> — ' + opt.label_cn;
+    btn.addEventListener('click', () => handleRefineAnswer(q.id, opt.value, opt.label_cn));
+    opts.appendChild(btn);
+  });
+  area.appendChild(opts);
+
+  const skipBtn = document.createElement('button');
+  skipBtn.className = 'ident-skip-btn';
+  skipBtn.type = 'button';
+  skipBtn.textContent = '跳过（不确定）';
+  skipBtn.title = '不知道答案时可跳过此题，后续仍会基于已答问题判断矿物';
+  skipBtn.addEventListener('click', () => handleRefineSkip(q.id));
+  area.appendChild(skipBtn);
+
+  renderRefineProgress();
+  updateRefineCandidatesBar();
+  updateRefineHistory();
+}
+
+async function handleRefineAnswer(qid, value, label) {
+  window._refineAnswers[qid] = value;
+  window._refineAnswerLabels[qid] = label;
+
+  await fetchRefineMatch();
+
+  window._refineStep++;
+  renderRefineProgress();
+
+  const count = parseInt(document.getElementById('refineCandidateCount').textContent);
+  if (count <= 3 && count > 0 && Object.keys(window._refineAnswers).length >= 2) {
+    document.getElementById('refineCandidatesBar').style.display = 'none';
+    return;
+  }
+  renderRefineQuestion();
+}
+
+async function handleRefineSkip(qid) {
+  window._refineSkipped[qid] = true;
+
+  await fetchRefineMatch();
+
+  window._refineStep++;
+  renderRefineProgress();
+
+  const count = parseInt(document.getElementById('refineCandidateCount').textContent);
+  if (count <= 3 && count > 0 && Object.keys(window._refineAnswers).length >= 2) {
+    document.getElementById('refineCandidatesBar').style.display = 'none';
+    return;
+  }
+  renderRefineQuestion();
+}
+
+async function fetchRefineMatch() {
+  try {
+    const body = Object.assign({}, window._refineAnswers);
+    if (window._refineFilter) {
+      body.candidate_filter = window._refineFilter;
+    }
+    body.image_scores = window._refineImageScores;
+    const res = await fetch('/api/identification/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    document.getElementById('refineCandidateCount').textContent = data.count;
+
+    if (data.count > 0) {
+      document.getElementById('refineCandidatesBar').style.display = 'flex';
+    } else {
+      document.getElementById('refineCandidatesBar').style.display = 'flex';
+      document.getElementById('refineCandidateCount').textContent = '0';
+    }
+
+    const answeredCount = Object.keys(window._refineAnswers).length;
+    const handledCount = refineHandledCount();
+    if ((data.count <= 3 && data.count > 0 && answeredCount >= 2) || handledCount >= _refineQuestions.length) {
+      renderRefineCandidates(data.candidates);
+    } else {
+      document.getElementById('refineResults').style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Refine match error:', err);
+  }
+}
+
+function renderRefineCandidates(candidates) {
+  const el = document.getElementById('refineResults');
+  el.style.display = 'block';
+  if (!candidates || candidates.length === 0) {
+    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:14px;">😕 没有匹配结果，请重新追问</div>';
+    return;
+  }
+  let html = '<div class="ident-results-title">🎯 结合图像 + 物理性质的最终判定</div>' +
+    '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">综合分 = 图像置信度×(1-α) + 性质匹配度×α，α随问题数量自适应 (0→0.7)</div>';
+  candidates.forEach((c, i) => {
+    const hasCombined = c.combined_score !== undefined;
+    const combinedPct = hasCombined ? c.combined_score.toFixed(1) + '%' : '—';
+    const imgPct = c.image_confidence !== undefined ? c.image_confidence.toFixed(1) + '%' : '—';
+    const propPct = c.match_score.toFixed(1) + '%';
+    const animDelay = (i * 0.06).toFixed(2);
+
+    let rankLabel = '';
+    if (i === 0) rankLabel = '🏆 ';
+    else if (i === 1) rankLabel = '🥈 ';
+    else if (i === 2) rankLabel = '🥉 ';
+
+    html += '<div class="refine-result-item" style="animation-delay:' + animDelay + 's;opacity:0;animation:fadeUp 0.3s ease forwards">' +
+      '<div><span class="rr-name">' + rankLabel + c.name_cn + '</span><span style="font-size:12px;color:var(--text-muted);margin-left:6px;">' + c.name_en + '</span></div>' +
+      '<div class="rr-scores">图像 ' + imgPct + ' | 性质 ' + propPct + ' | 综合 <span class="score-high">' + combinedPct + '</span></div>' +
+      '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function updateRefineCandidatesBar() {
+  if (Object.keys(window._refineAnswers).length === 0) {
+    document.getElementById('refineCandidatesBar').style.display = 'none';
+  }
+}
+
+function updateRefineHistory() {
+  const handled = _refineQuestions.filter(q => window._refineAnswers[q.id] || window._refineSkipped[q.id]);
+  if (handled.length === 0) {
+    document.getElementById('refineHistory').style.display = 'none';
+    return;
+  }
+  document.getElementById('refineHistory').style.display = 'block';
+  const tags = document.getElementById('refineHistoryTags');
+  tags.innerHTML = '';
+
+  handled.forEach(q => {
+    const tag = document.createElement('span');
+    tag.className = 'ident-history-tag';
+    tag.title = '点击回到此题';
+    const qLabel = q.question_cn.substring(0, 8) + '…';
+    if (window._refineSkipped[q.id]) {
+      tag.classList.add('skipped');
+      tag.innerHTML = '<span class="q-label">' + qLabel + '</span> <span class="a-label">→ 已跳过</span>';
+    } else {
+      tag.innerHTML = '<span class="q-label">' + qLabel + '</span> <span class="a-label">→ ' + window._refineAnswerLabels[q.id] + '</span>';
+    }
+    tag.addEventListener('click', () => goBackRefine(q.id));
+    tags.appendChild(tag);
+  });
+}
+
+function goBackRefine(qid) {
+  const idx = _refineQuestions.findIndex(q => q.id === qid);
+  if (idx < 0) return;
+  let changed = false;
+  for (let i = idx; i < _refineQuestions.length; i++) {
+    const id = _refineQuestions[i].id;
+    if (window._refineAnswers[id]) {
+      delete window._refineAnswers[id];
+      delete window._refineAnswerLabels[id];
+      changed = true;
+    }
+    if (window._refineSkipped[id]) {
+      delete window._refineSkipped[id];
+      changed = true;
+    }
+  }
+  if (changed) {
+    window._refineStep = idx;
+    document.getElementById('refineResults').style.display = 'none';
+    document.getElementById('refineCandidatesBar').style.display = 'none';
+    renderRefineProgress();
+    renderRefineQuestion();
+    updateRefineHistory();
+  }
+}
+
+fetch('/api/classes').then(r => r.json()).then(d => {
+  footerInfo.textContent = '支持 ' + d.total + ' 种矿物识别';
+}).catch(() => {});
+
+// ===== Property identification =====
+let identQuestions = [];
+let identAnswers = {};      // {questionId: optionValue}
+let identAnswerLabels = {}; // {questionId: label}
+let identTotalAnswers = 0;
+let identCurrentStep = 0;
+
+const identProgress = document.getElementById('identProgress');
+const identQuestionArea = document.getElementById('identQuestionArea');
+const identCandidatesBar = document.getElementById('identCandidatesBar');
+const identCandidateCount = document.getElementById('identCandidateCount');
+const identHistory = document.getElementById('identHistory');
+const identHistoryTags = document.getElementById('identHistoryTags');
+const identResetBtn = document.getElementById('identResetBtn');
+const identResults = document.getElementById('identResults');
+
+identResetBtn.addEventListener('click', resetIdentification);
+
+// Load questions on page load
+async function loadQuestions() {
+  try {
+    const res = await fetch('/api/identification/questions');
+    const data = await res.json();
+    identQuestions = data.questions;
+    identTotalAnswers = identQuestions.length;
+    renderProgress();
+    renderCurrentQuestion();
+  } catch (err) {
+    identQuestionArea.innerHTML = '<div class="error-msg" style="display:block;">加载问题失败：' + err.message + '</div>';
+  }
+}
+
+function renderProgress() {
+  identProgress.innerHTML = '';
+  identQuestions.forEach((q, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    if (identAnswers[q.id]) dot.classList.add('done');
+    if (i === identCurrentStep && !identAnswers[q.id]) dot.classList.add('current');
+    identProgress.appendChild(dot);
+  });
+}
+
+function renderCurrentQuestion() {
+  // If we already answered all questions, show results
+  if (identCurrentStep >= identQuestions.length || Object.keys(identAnswers).length === identTotalAnswers) {
+    // Already showed results from the last match call
+    return;
+  }
+
+  const q = identQuestions[identCurrentStep];
+  if (!q) return;
+
+  // Skip already answered questions
+  if (identAnswers[q.id]) {
+    identCurrentStep++;
+    renderCurrentQuestion();
+    return;
+  }
+
+  identQuestionArea.innerHTML = '';
+  const num = document.createElement('div');
+  num.className = 'ident-question-number';
+  num.textContent = '问题 ' + (identCurrentStep + 1) + ' / ' + identTotalAnswers;
+  identQuestionArea.appendChild(num);
+
+  const text = document.createElement('div');
+  text.className = 'ident-question-text';
+  text.textContent = q.question_cn;
+  identQuestionArea.appendChild(text);
+
+  const hint = document.createElement('div');
+  hint.className = 'ident-hint';
+  hint.textContent = '💡 ' + q.hint_cn;
+  identQuestionArea.appendChild(hint);
+
+  const opts = document.createElement('div');
+  opts.className = 'ident-options';
+
+  q.options.forEach((opt, oi) => {
+    const btn = document.createElement('button');
+    btn.className = 'ident-opt-btn';
+    btn.style.animationDelay = (oi * 0.04) + 's';
+    btn.innerHTML = '<strong>' + opt.value + '</strong> — ' + opt.label_cn;
+    btn.addEventListener('click', () => handleIdentAnswer(q.id, opt.value, opt.label_cn));
+    opts.appendChild(btn);
+  });
+
+  identQuestionArea.appendChild(opts);
+  renderProgress();
+  updateCandidatesBar();
+  updateHistory();
+}
+
+async function handleIdentAnswer(qid, value, label) {
+  identAnswers[qid] = value;
+  identAnswerLabels[qid] = label;
+
+  await fetchMatchResults();
+
+  identCurrentStep++;
+  renderProgress();
+
+  // Show results if all questions answered or match count is small enough
+  const candidateCount = parseInt(identCandidateCount.textContent);
+  if (candidateCount <= 5 && candidateCount > 0 && Object.keys(identAnswers).length >= 2) {
+    // Already rendered the candidates from fetchMatchResults, just show them prominently
+    identCandidatesBar.style.display = 'none';
+    return;
+  }
+
+  renderCurrentQuestion();
+}
+
+async function fetchMatchResults() {
+  try {
+    const res = await fetch('/api/identification/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(identAnswers),
+    });
+    const data = await res.json();
+
+    identCandidateCount.textContent = data.count;
+
+    if (data.count > 0) {
+      identCandidatesBar.style.display = 'flex';
+    } else {
+      identCandidatesBar.style.display = 'flex';
+      identCandidateCount.textContent = '0';
+      // Show a message that no matches found
+    }
+
+    // Show candidate results when we have a reasonable number or answered enough
+    const answeredCount = Object.keys(identAnswers).length;
+    if ((data.count <= 5 && data.count > 0 && answeredCount >= 2) || answeredCount === identTotalAnswers) {
+      renderIdentCandidates(data.candidates);
+    } else {
+      identResults.style.display = 'none';
+    }
+
+    return data;
+  } catch (err) {
+    console.error('Match error:', err);
+  }
+}
+
+function renderIdentCandidates(candidates) {
+  identResults.style.display = 'block';
+  if (!candidates || candidates.length === 0) {
+    identResults.innerHTML = '<div class="ident-results-title">😕 未找到匹配的矿物</div><p style="color:var(--text-muted);font-size:14px;">请检查输入，或尝试 <a href="#" onclick="resetIdentification();return false;" style="color:var(--accent)">重新开始</a></p>';
+    return;
+  }
+
+  let title = '🎯 匹配矿物排名';
+  if (Object.keys(identAnswers).length < identTotalAnswers) {
+    title = '📋 当前候选矿物（匹配度排名）';
+  }
+
+  let html = '<div class="ident-results-title">' + title + '</div>';
+  candidates.forEach((c, i) => {
+    const rankClass = i === 0 ? 'top-1' : '';
+    const animDelay = (i * 0.06).toFixed(2);
+    html += '<div class="result-item ' + rankClass + '" style="animation-delay:' + animDelay + 's;opacity:0">' +
+      '<div class="header">' +
+        '<div><span class="name-cn">' + c.name_cn + '</span><span class="name-en">' + c.name_en + '</span></div>' +
+        '<span class="confidence-label">' + c.match_score + '%</span>' +
+      '</div>' +
+      '<div class="bar-track">' +
+        '<div class="bar-fill" style="--pct:' + c.match_score + '%"></div>' +
+      '</div>' +
+    '</div>';
+  });
+  identResults.innerHTML = html;
+
+  // Animate bars
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      identResults.querySelectorAll('.bar-fill').forEach(el => el.classList.add('animate'));
+    });
+  });
+}
+
+function updateCandidatesBar() {
+  const answeredCount = Object.keys(identAnswers).length;
+  if (answeredCount === 0) {
+    identCandidatesBar.style.display = 'none';
+  }
+}
+
+function updateHistory() {
+  const answeredIds = Object.keys(identAnswers);
+  if (answeredIds.length === 0) {
+    identHistory.style.display = 'none';
+    return;
+  }
+  identHistory.style.display = 'block';
+  identHistoryTags.innerHTML = '';
+
+  answeredIds.forEach(qid => {
+    const tag = document.createElement('span');
+    tag.className = 'ident-history-tag';
+    tag.title = '点击回到此问题';
+    // Find question label
+    const q = identQuestions.find(q => q.id === qid);
+    const qLabel = q ? q.question_cn.substring(0, 10) + '…' : qid;
+    tag.innerHTML = '<span class="q-label">' + qLabel + '</span> <span class="a-label">→ ' + identAnswerLabels[qid] + '</span>';
+    tag.addEventListener('click', () => goBackTo(qid));
+    identHistoryTags.appendChild(tag);
+  });
+}
+
+function goBackTo(qid) {
+  // Find the index of this question
+  const idx = identQuestions.findIndex(q => q.id === qid);
+  if (idx < 0) return;
+
+  // Remove all answers from this point onward
+  let changed = false;
+  const ids = identQuestions.map(q => q.id);
+  for (let i = idx; i < ids.length; i++) {
+    if (identAnswers[ids[i]]) {
+      delete identAnswers[ids[i]];
+      delete identAnswerLabels[ids[i]];
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    identCurrentStep = idx;
+    identResults.style.display = 'none';
+    identCandidatesBar.style.display = 'none';
+    renderProgress();
+    renderCurrentQuestion();
+    updateHistory();
+  }
+}
+
+function resetIdentification() {
+  identAnswers = {};
+  identAnswerLabels = {};
+  identCurrentStep = 0;
+  identResults.style.display = 'none';
+  identCandidatesBar.style.display = 'none';
+  identHistory.style.display = 'none';
+  renderProgress();
+  renderCurrentQuestion();
+  updateHistory();
+}
+
+loadQuestions();
+
+</script>
+</body>
+</html>
