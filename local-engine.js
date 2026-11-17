@@ -2,7 +2,7 @@
   "use strict";
 
   const nativeFetch = window.fetch.bind(window);
-  const MODEL_URL = window.MINERAL_MODEL_URL || "./model-int8.onnx";
+  const MODEL_PART_COUNT = window.MINERAL_MODEL_PART_COUNT || 5;
 
   window.MINERAL_ENGINE = {
     modelLoaded: false,
@@ -24,18 +24,58 @@
     return response.json();
   });
 
+  async function loadModelBytes() {
+    const footer = document.getElementById("footerInfo");
+    if (footer) {
+      footer.textContent = "正在加载本地识别模型（首次约 90 MB）…";
+    }
+
+    const partResponses = await Promise.all(
+      Array.from({ length: MODEL_PART_COUNT }, (_, index) =>
+        nativeFetch(`./models/model-int8.onnx.part${index}?v=1`),
+      ),
+    );
+    if (partResponses.some((response) => !response.ok)) {
+      throw new Error("模型分片下载失败");
+    }
+
+    const partBuffers = await Promise.all(
+      partResponses.map((response) => response.arrayBuffer()),
+    );
+    const totalLength = partBuffers.reduce(
+      (total, buffer) => total + buffer.byteLength,
+      0,
+    );
+    const modelBytes = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const buffer of partBuffers) {
+      modelBytes.set(new Uint8Array(buffer), offset);
+      offset += buffer.byteLength;
+    }
+    return modelBytes;
+  }
+
   const sessionPromise = (async () => {
     if (!window.ort) {
       throw new Error("ONNX Runtime Web 未加载");
     }
-    const session = await window.ort.InferenceSession.create(MODEL_URL, {
+    const modelBytes = await loadModelBytes();
+    const session = await window.ort.InferenceSession.create(modelBytes, {
       executionProviders: ["wasm"],
       graphOptimizationLevel: "all",
     });
     window.MINERAL_ENGINE.modelLoaded = true;
+    const footer = document.getElementById("footerInfo");
+    if (footer) {
+      footer.textContent = "模型已加载 · 支持 282 种矿物识别";
+    }
     return session;
   })().catch((error) => {
     window.MINERAL_ENGINE.modelError = error;
+    const footer = document.getElementById("footerInfo");
+    if (footer) {
+      footer.textContent = "模型加载失败，请刷新页面重试";
+    }
     throw error;
   });
 
