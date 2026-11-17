@@ -23,7 +23,7 @@
     window.ort.env.wasm.wasmPaths =
       "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/";
     window.ort.env.wasm.numThreads = 1;
-    window.ort.env.wasm.proxy = false;
+    window.ort.env.wasm.proxy = true;
   }
 
   const dataPromise = nativeFetch("./mineral-data.json").then((response) => {
@@ -331,7 +331,27 @@
   async function classifyFile(file, topK = 5) {
     const [data, session] = await Promise.all([dataPromise, sessionPromise]);
     const tensor = await fileToTensor(file);
-    const output = await session.run({ pixel_values: tensor });
+    const footer = document.getElementById("footerInfo");
+    if (footer) {
+      footer.textContent = "正在进行本地图像识别，首次通常需要 30-90 秒…";
+    }
+
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = window.setTimeout(
+        () => reject(new Error("识别超时，请重新选择图片或刷新页面")),
+        150000,
+      );
+    });
+    let output;
+    try {
+      output = await Promise.race([
+        session.run({ pixel_values: tensor }),
+        timeoutPromise,
+      ]);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
     const logits = output.logits.data;
 
     let maximum = -Infinity;
@@ -348,7 +368,7 @@
       .sort((left, right) => probabilities[right] - probabilities[left])
       .slice(0, topK);
 
-    return ranked.map((index) => {
+    const results = ranked.map((index) => {
       const english = data.labels[String(index)];
       const chinese = data.minerals[english]?.name_cn || english;
       return {
@@ -357,6 +377,10 @@
         confidence: Math.round((probabilities[index] / total) * 10000) / 100,
       };
     });
+    if (footer) {
+      footer.textContent = "识别完成 · 支持 282 种矿物识别";
+    }
+    return results;
   }
 
   function jsonResponse(payload, status = 200) {
