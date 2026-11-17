@@ -3,6 +3,15 @@
 
   const nativeFetch = window.fetch.bind(window);
   const MODEL_PART_COUNT = window.MINERAL_MODEL_PART_COUNT || 5;
+  const MODEL_PART_SIZES = [
+    20971520,
+    20971520,
+    20971520,
+    20971520,
+    9947815,
+  ];
+  const MODEL_CACHE_NAME = "mineral-classifier-model-v2";
+  const MODEL_CACHE_KEY = "/mineral-classifier-model-v2/model-int8.onnx";
 
   window.MINERAL_ENGINE = {
     modelLoaded: false,
@@ -26,31 +35,79 @@
 
   async function loadModelBytes() {
     const footer = document.getElementById("footerInfo");
-    if (footer) {
-      footer.textContent = "正在加载本地识别模型（首次约 90 MB）…";
+    let modelCache = null;
+    if ("caches" in window) {
+      modelCache = await window.caches.open(MODEL_CACHE_NAME);
+      const cachedModel = await modelCache.match(MODEL_CACHE_KEY);
+      if (cachedModel) {
+        if (footer) {
+          footer.textContent = "正在从浏览器缓存加载识别模型…";
+        }
+        return new Uint8Array(await cachedModel.arrayBuffer());
+      }
     }
 
-    const partResponses = await Promise.all(
-      Array.from({ length: MODEL_PART_COUNT }, (_, index) =>
-        nativeFetch(`./models/model-int8.onnx.part${index}?v=1`),
-      ),
-    );
-    if (partResponses.some((response) => !response.ok)) {
-      throw new Error("模型分片下载失败");
-    }
-
-    const partBuffers = await Promise.all(
-      partResponses.map((response) => response.arrayBuffer()),
-    );
-    const totalLength = partBuffers.reduce(
-      (total, buffer) => total + buffer.byteLength,
+    const totalLength = MODEL_PART_SIZES.slice(0, MODEL_PART_COUNT).reduce(
+      (total, size) => total + size,
       0,
     );
     const modelBytes = new Uint8Array(totalLength);
     let offset = 0;
-    for (const buffer of partBuffers) {
-      modelBytes.set(new Uint8Array(buffer), offset);
-      offset += buffer.byteLength;
+
+    for (let index = 0; index < MODEL_PART_COUNT; index += 1) {
+      const expectedSize = MODEL_PART_SIZES[index];
+      let partBuffer = null;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        if (footer) {
+          footer.textContent = `正在加载识别模型 ${index + 1}/${MODEL_PART_COUNT}，第 ${attempt} 次尝试…`;
+        }
+        try {
+          const response = await nativeFetch(
+            `./models/model-int8.onnx.part${index}?v=2`,
+            {
+              cache: "force-cache",
+              credentials: "omit",
+            },
+          );
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          partBuffer = await response.arrayBuffer();
+          if (partBuffer.byteLength !== expectedSize) {
+            throw new Error("模型分片大小不完整");
+          }
+          break;
+        } catch (error) {
+          lastError = error;
+          partBuffer = null;
+          await new Promise((resolve) => window.setTimeout(resolve, 1200 * attempt));
+        }
+      }
+
+      if (!partBuffer) {
+        throw new Error(
+          `第 ${index + 1} 个模型分片加载失败：${lastError?.message || "网络错误"}`,
+        );
+      }
+
+      modelBytes.set(new Uint8Array(partBuffer), offset);
+      offset += partBuffer.byteLength;
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+    }
+
+    if (modelCache) {
+      try {
+        await modelCache.put(
+          MODEL_CACHE_KEY,
+          new Response(modelBytes, {
+            headers: { "Content-Type": "application/octet-stream" },
+          }),
+        );
+      } catch (error) {
+        console.warn("Unable to cache the ONNX model", error);
+      }
     }
     return modelBytes;
   }
@@ -229,13 +286,30 @@
   }
 
   async function fileToTensor(file) {
-    const bitmap = await createImageBitmap(file);
+    let imageSource;
+    let releaseSource = () => {};
+    if (window.createImageBitmap) {
+      imageSource = await window.createImageBitmap(file);
+      releaseSource = () => imageSource.close?.();
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      imageSource = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("图片读取失败"));
+        image.src = objectUrl;
+      });
+      releaseSource = () => URL.revokeObjectURL(objectUrl);
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 256;
     const context = canvas.getContext("2d", { willReadFrequently: true });
-    context.drawImage(bitmap, 0, 0, 256, 256);
-    bitmap.close?.();
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(imageSource, 0, 0, 256, 256);
+    releaseSource();
 
     const pixels = context.getImageData(0, 0, 256, 256).data;
     const tensor = new Float32Array(3 * 256 * 256);
