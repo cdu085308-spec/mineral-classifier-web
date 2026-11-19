@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>矿物分类识别系统</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%E2%97%86%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://hf-mirror.com" crossorigin>
+<link rel="preconnect" href="https://huggingface.co" crossorigin>
+<link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -475,9 +478,6 @@
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/ort.min.js"></script>
-<script>
-  window.MINERAL_MODEL_PART_COUNT = 5;
-</script>
 </head>
 <body>
 
@@ -582,7 +582,7 @@
   <span id="footerInfo">矿物分类识别系统 v2.0</span>
 </footer>
 
-<script src="local-engine.js?v=3"></script>
+<script src="local-engine.js?v=5"></script>
 <script>
 // ===== Tab switching =====
 document.querySelectorAll('.tab-btn').forEach(btn => {
