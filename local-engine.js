@@ -166,15 +166,24 @@
     let lastError = null;
     for (const source of sources) {
       let downloadedBytes = 0;
+      let watchdog = null;
+      const controller = new AbortController();
+      const armWatchdog = () => {
+        window.clearTimeout(watchdog);
+        watchdog = window.setTimeout(() => controller.abort(), 20000);
+      };
+      armWatchdog();
       try {
         const response = await nativeFetch(source.url(variant, index), {
           cache: "force-cache",
           credentials: "omit",
+          signal: controller.signal,
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
         return await readPart(response, expectedSize, (bytes) => {
+          armWatchdog();
           downloadedBytes += bytes;
           onProgress(bytes);
         });
@@ -183,6 +192,8 @@
           onProgress(-downloadedBytes);
         }
         lastError = error;
+      } finally {
+        window.clearTimeout(watchdog);
       }
     }
     throw new Error(
