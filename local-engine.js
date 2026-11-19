@@ -345,7 +345,9 @@
     }
   }
 
-  const sessionPromise = (async () => {
+  let sessionPromise = null;
+
+  async function createSession() {
     if (!window.ort) {
       throw new Error("ONNX Runtime Web 未加载");
     }
@@ -362,14 +364,19 @@
       footer.textContent = "模型已加载 · 支持 282 种矿物识别";
     }
     return session;
-  })().catch((error) => {
-    window.MINERAL_ENGINE.modelError = error;
-    const footer = document.getElementById("footerInfo");
-    if (footer) {
-      footer.textContent = "模型加载失败，请刷新页面重试";
+  }
+
+  window.MINERAL_ENGINE.ensureSession = function ensureSession() {
+    if (!sessionPromise) {
+      sessionPromise = createSession().catch((error) => {
+        sessionPromise = null;
+        window.MINERAL_ENGINE.modelError = error;
+        setFooter("模型加载失败，请刷新页面重试");
+        throw error;
+      });
     }
-    throw error;
-  });
+    return sessionPromise;
+  };
 
   const hardnessRanges = {
     "<2.5": [0, 2.5],
@@ -564,7 +571,10 @@
   }
 
   async function classifyFile(file, topK = 5) {
-    const [data, session] = await Promise.all([dataPromise, sessionPromise]);
+    const [data, session] = await Promise.all([
+      dataPromise,
+      window.MINERAL_ENGINE.ensureSession(),
+    ]);
     const tensor = await fileToTensor(file);
     const footer = document.getElementById("footerInfo");
     if (footer) {
