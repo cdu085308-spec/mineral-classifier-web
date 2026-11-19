@@ -3,6 +3,7 @@
 
   const nativeFetch = window.fetch.bind(window);
   const HF_MODEL_COMMIT = "a30da5a6f005a1126aed12d15b38943820c8b528";
+  const GITHUB_MODEL_COMMIT = "86543de0bdc4613a80f4ffddd2d7567c45053543";
   const MODEL_VARIANTS = {
     fast: {
       id: "swinv2-tiny-int8-opt",
@@ -27,6 +28,25 @@
   });
   const MODEL_SOURCES = [
     {
+      name: "jsDelivr Gcore",
+      url: (variant, index) =>
+        `https://gcore.jsdelivr.net/gh/cdu085308-spec/mineral-classifier-web@${GITHUB_MODEL_COMMIT}/models/${variant.fileBase}.part${index}`,
+    },
+    {
+      name: "本站",
+      url: (variant, index) => `./models/${variant.fileBase}.part${index}?v=4`,
+    },
+    {
+      name: "jsDelivr Fastly",
+      url: (variant, index) =>
+        `https://fastly.jsdelivr.net/gh/cdu085308-spec/mineral-classifier-web@${GITHUB_MODEL_COMMIT}/models/${variant.fileBase}.part${index}`,
+    },
+    {
+      name: "jsDelivr",
+      url: (variant, index) =>
+        `https://cdn.jsdelivr.net/gh/cdu085308-spec/mineral-classifier-web@${GITHUB_MODEL_COMMIT}/models/${variant.fileBase}.part${index}`,
+    },
+    {
       name: "国内镜像",
       url: (variant, index) =>
         `https://hf-mirror.com/baizizhidao11/mineral-classifier-web-model/resolve/${HF_MODEL_COMMIT}/models/${variant.fileBase}.part${index}`,
@@ -35,15 +55,6 @@
       name: "Hugging Face",
       url: (variant, index) =>
         `https://huggingface.co/baizizhidao11/mineral-classifier-web-model/resolve/${HF_MODEL_COMMIT}/models/${variant.fileBase}.part${index}`,
-    },
-    {
-      name: "本站",
-      url: (variant, index) => `./models/${variant.fileBase}.part${index}?v=4`,
-    },
-    {
-      name: "jsDelivr",
-      url: (variant, index) =>
-        `https://fastly.jsdelivr.net/gh/cdu085308-spec/mineral-classifier-web@main/models/${variant.fileBase}.part${index}?v=4`,
     },
   ];
 
@@ -85,10 +96,11 @@
 
   async function probeSource(source, variant) {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 6500);
+    const timeout = window.setTimeout(() => controller.abort(), 6000);
+    const started = performance.now();
     try {
       const response = await nativeFetch(source.url(variant, 0), {
-        method: "HEAD",
+        headers: { Range: "bytes=0-262143" },
         cache: "no-store",
         credentials: "omit",
         signal: controller.signal,
@@ -96,7 +108,21 @@
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      return source;
+      if (!response.body) {
+        return source;
+      }
+      const reader = response.body.getReader();
+      let bytes = 0;
+      while (bytes < 262144) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        bytes += value.byteLength;
+      }
+      await reader.cancel();
+      const elapsed = Math.max(performance.now() - started, 1);
+      return { source, score: bytes / elapsed };
     } finally {
       window.clearTimeout(timeout);
     }
@@ -106,26 +132,41 @@
     return new Promise((resolve) => {
       let settled = false;
       let remaining = MODEL_SOURCES.length;
+      let firstSuccessTimer = null;
+      const results = [];
       const finish = (source) => {
         if (!settled) {
           settled = true;
+          window.clearTimeout(firstSuccessTimer);
           resolve(source);
         }
+      };
+      const chooseBest = () => {
+        results.sort((left, right) => right.score - left.score);
+        finish(results[0]?.source || MODEL_SOURCES[1]);
       };
 
       MODEL_SOURCES.forEach((source) => {
         probeSource(source, variant)
-          .then(finish)
+          .then((result) => {
+            if (!result.score) {
+              return;
+            }
+            results.push(result);
+            if (!firstSuccessTimer) {
+              firstSuccessTimer = window.setTimeout(chooseBest, 1800);
+            }
+          })
           .catch(() => {})
           .finally(() => {
             remaining -= 1;
             if (remaining === 0) {
-              finish(MODEL_SOURCES[2]);
+              chooseBest();
             }
           });
       });
 
-      window.setTimeout(() => finish(MODEL_SOURCES[2]), 7000);
+      window.setTimeout(chooseBest, 7000);
     });
   }
 
