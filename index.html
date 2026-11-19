@@ -579,10 +579,10 @@
 </div>
 
 <footer>
-  <span id="footerInfo">矿物分类识别系统 v2.0</span>
+  <span id="footerInfo">模型将在首次图像识别时加载</span>
 </footer>
 
-<script src="local-engine.js?v=7"></script>
+<script src="local-engine.js?v=8"></script>
 <script>
 // ===== Tab switching =====
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -606,6 +606,11 @@ const errorMsg = document.getElementById('errorMsg');
 const reloadBtn = document.getElementById('reloadBtn');
 const footerInfo = document.getElementById('footerInfo');
 
+const ensureModelLoad = () => {
+  window.MINERAL_ENGINE?.ensureSession().catch(() => {});
+};
+uploadZone.addEventListener('pointerdown', ensureModelLoad, { once: true });
+uploadZone.addEventListener('dragenter', ensureModelLoad, { once: true });
 uploadZone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', e => { if (e.target.files.length > 0) handleFiles(e.target.files); });
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
